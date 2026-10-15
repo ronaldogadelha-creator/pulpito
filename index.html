@@ -765,8 +765,14 @@ function telaEditor() {
       const texto = await lerArquivo(file);
       ta.value = texto;
       const doc = parse(texto);
-      if (doc.titulo) fT.value = doc.titulo;
-      if (doc.ref) fR.value = doc.ref;
+      // o número que abre o nome do arquivo vira o número do sermão
+      const base = (file.name || "").replace(/\.[^.]+$/, "");
+      const mn = base.match(/^\s*(\d{1,3})\s*[-–.]\s*/);
+      let titulo = doc.titulo || base.replace(/^\s*\d{1,3}\s*[-–.]\s*/, "");
+      if (mn) titulo = String(parseInt(mn[1], 10)).padStart(2, "0") + " - " + titulo.replace(/^\s*\d{1,3}\s*[-–.]\s*/, "");
+      if (titulo.trim()) fT.value = titulo.trim();
+      const refArq = base.match(/(G[ÊE]NESIS|G[Êê]n|GN|MATEUS|MT|MARCOS|MC|LUCAS|LC|JO[ÃA]O|JO|ATOS|AT|ROMANOS|RM|SALMOS|SL|IS|ISA[ÍI]AS)\b\.?\s*\d{1,3}\s*[.,]?\s*\d{0,3}(?:\s*[-–]\s*\d{1,3})?/i);
+      fR.value = doc.ref || (refArq ? refArq[0].replace(/\s+/g, " ").trim() : fR.value);
       atualiza();
       toast("Esboço lido do arquivo. Confira antes de salvar.");
       ta.scrollIntoView({ behavior: "smooth", block: "center" });

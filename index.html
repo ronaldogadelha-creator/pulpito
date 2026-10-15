@@ -127,6 +127,7 @@ h1,h2,h3{text-wrap:balance; margin:0}
 .ghost-tick.late{background:var(--over)}
 .wherebar{display:flex; gap:8px; align-items:center; font-size:12px; color:var(--muted); min-width:0}
 .wherebar b{color:var(--navy); font-weight:600; font-family:var(--display); font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.hora{margin-left:auto; flex:none; font-weight:600; font-size:13.5px; color:var(--fg); font-variant-numeric:tabular-nums; letter-spacing:.01em}
 
 #sermao{padding-left:max(18px, env(safe-area-inset-left,0px)); padding-right:max(18px, env(safe-area-inset-right,0px));
   padding-block:20px 0; max-width:48rem; margin:0 auto; font-family:var(--display); font-size:calc(var(--ps) * 1px); line-height:1.52}
@@ -475,6 +476,7 @@ function corpoHTML(doc) {
 /* ========== telas ========== */
 function render() {
   const app = $("#app");
+  if (S.relogio) { clearInterval(S.relogio); S.relogio = null; }
   app.innerHTML = "";
   if (S.view === "lib") app.appendChild(telaBiblioteca());
   else if (S.view === "edit") app.appendChild(telaEditor());
@@ -664,7 +666,8 @@ function telaPulpito() {
   const wb = el("div", "wherebar");
   const onde = el("b"); onde.id = "onde"; onde.textContent = "—";
   const prev = el("span"); prev.id = "prev";
-  wb.appendChild(onde); wb.appendChild(prev);
+  const hora = el("span", "hora"); hora.id = "hora"; hora.title = "Hora agora";
+  wb.appendChild(onde); wb.appendChild(prev); wb.appendChild(hora);
   top.appendChild(wb);
   root.appendChild(top);
 
@@ -693,8 +696,16 @@ function telaPulpito() {
   bar.appendChild(zera); bar.appendChild(go); bar.appendChild(fim);
   root.appendChild(bar);
 
-  setTimeout(() => { montaTrilha(secs); pintaTempo(); }, 0);
+  setTimeout(() => { montaTrilha(secs); pintaTempo(); pintaHora(); }, 0);
+  if (S.relogio) clearInterval(S.relogio);
+  S.relogio = setInterval(pintaHora, 10000);
   return root;
+}
+
+function pintaHora() {
+  const h = $("#hora"); if (!h) return;
+  const d = new Date();
+  h.textContent = d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0");
 }
 
 /* ========== trilha e seções ========== */

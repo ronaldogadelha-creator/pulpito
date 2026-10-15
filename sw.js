@@ -1,6 +1,6 @@
 /* Púlpito — funciona sem internet.
    Troque a versão abaixo sempre que publicar uma mudança. */
-const VERSAO = "pulpito-v1";
+const VERSAO = "pulpito-v2";
 const ARQUIVOS = [
   "./", "./index.html", "./jszip.min.js", "./manifest.webmanifest",
   "./icon-180.png", "./icon-192.png", "./icon-512.png", "./icon-512-maskable.png"

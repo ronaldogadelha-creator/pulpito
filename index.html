@@ -85,6 +85,15 @@ h1,h2,h3{text-wrap:balance; margin:0}
 .card h3{font-family:var(--display); font-size:19px; font-weight:600; line-height:1.25; min-width:0; overflow-wrap:anywhere}
 .card .ref{color:var(--wine); font-family:var(--display); font-weight:600; font-size:14px}
 .card .meta{display:flex; gap:12px; flex-wrap:wrap; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums}
+.pasta h3{display:flex; align-items:center; gap:9px}
+.pasta h3 .ic{width:22px; height:17px; flex:none; border-radius:2px 5px 5px 5px; background:var(--navy); position:relative}
+.pasta h3 .ic::before{content:""; position:absolute; top:-4px; left:0; width:9px; height:5px; border-radius:2px 2px 0 0; background:var(--navy)}
+.pasta.solta h3 .ic{background:var(--muted)}
+.pasta.solta h3 .ic::before{background:var(--muted)}
+.num-badge{flex:none; font-variant-numeric:tabular-nums; font-family:var(--ui); font-size:12px; font-weight:600; color:var(--wine); background:var(--wine-soft); border-radius:6px; padding:2px 7px; align-self:flex-start}
+.titlerow{display:flex; gap:8px; align-items:flex-start; min-width:0}
+.novapasta{margin-top:16px; display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.novapasta input{flex:1 1 200px; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 13px; font-size:15px}
 .card-actions{display:flex; gap:6px; border-top:1px solid var(--line); padding-top:10px; margin-top:2px}
 .card-actions .btn{padding:7px 11px; font-size:13px; box-shadow:none}
 .empty{background:var(--surface); border:1px dashed var(--line); border-radius:14px; padding:26px 20px; text-align:center; display:grid; gap:12px; justify-items:center}
@@ -93,7 +102,8 @@ h1,h2,h3{text-wrap:balance; margin:0}
 /* ---------- editor ---------- */
 .field{display:grid; gap:6px; margin-bottom:14px}
 .field label{font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.03em}
-.field input, .field textarea{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:11px 13px; width:100%; font-size:15px}
+.field input, .field textarea, .field select{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:11px 13px; width:100%; font-size:15px}
+.field select{appearance:none; background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%); background-position:calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size:5px 5px,5px 5px; background-repeat:no-repeat; padding-right:36px}
 .field textarea{min-height:46vh; font-family:var(--display); line-height:1.5; resize:vertical}
 .field .hint{font-size:12px; color:var(--muted); line-height:1.5}
 .stats{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 16px}
@@ -211,7 +221,7 @@ function lsSet(o) { try { localStorage.setItem(LS, JSON.stringify(o)); } catch (
 
 /* ========== estado ========== */
 const S = {
-  view: "lib", sermoes: [], atual: null, db: null, podeNuvem: false,
+  view: "lib", sermoes: [], pastas: [], pastaAberta: null, atual: null, db: null, podeNuvem: false,
   ps: 21, tema: null,
   t: { rodando: false, t0: 0, acum: 0, alertas: {}, log: [], secAtual: -1 },
   secs: [], tick: null
@@ -221,9 +231,10 @@ const S = {
 async function carregar() {
   const local = lsGet();
   S.ps = local.ps || 21;
+  S.pastas = local.pastas || [];
   S.sermoes = (local.sermoes || []).sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
 }
-function salvarLocal() { const o = lsGet(); o.sermoes = S.sermoes; o.ps = S.ps; lsSet(o); }
+function salvarLocal() { const o = lsGet(); o.sermoes = S.sermoes; o.ps = S.ps; o.pastas = S.pastas; lsSet(o); }
 async function salvar(s) {
   s.atualizadoEm = Date.now();
   const i = S.sermoes.findIndex(x => x.id === s.id);
@@ -235,7 +246,7 @@ async function apagar(id) { S.sermoes = S.sermoes.filter(x => x.id !== id); salv
 
 function exportar() {
   if (!S.sermoes.length) return toast("Não há esboços para exportar.");
-  const dados = JSON.stringify({ app: "pulpito", versao: 1, em: new Date().toISOString(), sermoes: S.sermoes }, null, 1);
+  const dados = JSON.stringify({ app: "pulpito", versao: 2, em: new Date().toISOString(), pastas: S.pastas || [], sermoes: S.sermoes }, null, 1);
   const url = URL.createObjectURL(new Blob([dados], { type: "application/json" }));
   const a = document.createElement("a");
   const d = new Date(), p = n => String(n).padStart(2, "0");
@@ -249,6 +260,7 @@ async function importar(file) {
     const dados = JSON.parse(await file.text());
     const lista = Array.isArray(dados) ? dados : (dados.sermoes || []);
     if (!lista.length) return toast("Esse arquivo não tem esboços.");
+    (dados.pastas || []).forEach(n => { if (n && !(S.pastas || []).includes(n)) S.pastas = [...(S.pastas || []), n]; });
     let novos = 0, atualizados = 0;
     lista.forEach(s => {
       if (!s || !s.id || !s.texto) return;
@@ -477,6 +489,48 @@ function corpoHTML(doc) {
   return { frag, secs };
 }
 
+/* ========== pastas e ordem ========== */
+/* o número que abre o título manda na ordem: 03 vem antes de 02 */
+function numeroDoTitulo(s) {
+  const m = String(s.titulo || "").match(/^\s*(\d{1,3})(?=\D|$)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+function ordenar(lista) {
+  return lista.slice().sort((a, b) => {
+    const na = numeroDoTitulo(a), nb = numeroDoTitulo(b);
+    if (na !== null && nb !== null) return nb - na || (b.atualizadoEm || 0) - (a.atualizadoEm || 0);
+    if (na !== null) return -1;
+    if (nb !== null) return 1;
+    return (b.atualizadoEm || 0) - (a.atualizadoEm || 0);
+  });
+}
+function listaPastas() {
+  const nomes = new Set(S.pastas || []);
+  S.sermoes.forEach(s => { const n = (s.serie || "").trim(); if (n) nomes.add(n); });
+  return [...nomes].sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+function daPasta(nome) { return ordenar(S.sermoes.filter(s => (s.serie || "").trim() === nome)); }
+function criarPasta(nome) {
+  nome = (nome || "").trim();
+  if (!nome) return false;
+  if (listaPastas().some(x => x.toLowerCase() === nome.toLowerCase())) { toast("Já existe uma pasta com esse nome."); return false; }
+  S.pastas = [...(S.pastas || []), nome]; salvarLocal(); return true;
+}
+async function renomearPasta(velho, novo) {
+  novo = (novo || "").trim(); if (!novo || novo === velho) return;
+  S.pastas = (S.pastas || []).map(x => x === velho ? novo : x);
+  if (!S.pastas.includes(novo)) S.pastas.push(novo);
+  salvarLocal();
+  for (const s of S.sermoes.filter(x => (x.serie || "").trim() === velho)) { s.serie = novo; await salvar(s); }
+  salvarLocal(); render();
+}
+async function apagarPasta(nome) {
+  S.pastas = (S.pastas || []).filter(x => x !== nome);
+  salvarLocal();
+  for (const s of S.sermoes.filter(x => (x.serie || "").trim() === nome)) { s.serie = ""; await salvar(s); }
+  salvarLocal(); S.pastaAberta = null; render();
+}
+
 /* ========== telas ========== */
 function render() {
   const app = $("#app");
@@ -488,13 +542,83 @@ function render() {
   window.scrollTo(0, 0);
 }
 
+function cardSermao(s) {
+  const doc = parse(s.texto), m = metricas(doc.blocos), n = numeroDoTitulo(s);
+  const c = el("div", "card");
+  const abrir = el("button");
+  abrir.style.cssText = "border:none;box-shadow:none;padding:0;background:none;display:flex;flex-direction:column;gap:6px;text-align:left;width:100%;min-width:0";
+  const linha = el("div", "titlerow");
+  if (n !== null) linha.appendChild(el("span", "num-badge", String(n).padStart(2, "0")));
+  linha.appendChild(el("h3", null, s.titulo || "(sem t\u00edtulo)"));
+  abrir.appendChild(linha);
+  if (s.ref) abrir.appendChild(el("div", "ref", s.ref));
+  const meta = el("div", "meta");
+  meta.appendChild(el("span", null, s.alvo + " min"));
+  meta.appendChild(el("span", null, m.corpo + " palavras"));
+  if (m.movs) meta.appendChild(el("span", null, m.movs + " movimentos"));
+  abrir.appendChild(meta);
+  abrir.onclick = () => abrirPulpito(s.id);
+  c.appendChild(abrir);
+  const act = el("div", "card-actions");
+  const p = el("button", "btn primary", "Pregar"); p.onclick = () => abrirPulpito(s.id);
+  const ed = el("button", "btn", "Editar"); ed.onclick = () => { S.atual = s; S.view = "edit"; render(); };
+  const del = el("button", "btn danger", "Apagar");
+  del.onclick = () => {
+    if (del.dataset.confirma) { apagar(s.id).then(render); return; }
+    del.dataset.confirma = "1"; del.textContent = "Confirmar?";
+    setTimeout(() => { if (del.isConnected) { delete del.dataset.confirma; del.textContent = "Apagar"; } }, 4000);
+  };
+  act.appendChild(p); act.appendChild(ed); act.appendChild(el("div", "spacer")); act.appendChild(del);
+  c.appendChild(act);
+  return c;
+}
+
+function cardPasta(nome) {
+  const lista = daPasta(nome), solta = !nome;
+  const c = el("div", "card pasta" + (solta ? " solta" : ""));
+  const abrir = el("button");
+  abrir.style.cssText = "border:none;box-shadow:none;padding:0;background:none;display:flex;flex-direction:column;gap:6px;text-align:left;width:100%;min-width:0";
+  const h = el("h3"); h.appendChild(el("span", "ic")); h.appendChild(document.createTextNode(nome || "Sem pasta"));
+  abrir.appendChild(h);
+  const meta = el("div", "meta");
+  meta.appendChild(el("span", null, lista.length === 1 ? "1 esbo\u00e7o" : lista.length + " esbo\u00e7os"));
+  if (lista.length) meta.appendChild(el("span", null, "\u00faltimo: " + (lista[0].titulo || "").slice(0, 28)));
+  abrir.appendChild(meta);
+  abrir.onclick = () => { S.pastaAberta = nome; render(); };
+  c.appendChild(abrir);
+  if (!solta) {
+    const act = el("div", "card-actions");
+    const ab = el("button", "btn primary", "Abrir"); ab.onclick = () => { S.pastaAberta = nome; render(); };
+    const ren = el("button", "btn", "Renomear");
+    ren.onclick = () => {
+      act.hidden = true;
+      const linha = el("div", "novapasta");
+      const inp = el("input"); inp.value = nome; inp.setAttribute("aria-label", "Novo nome da pasta");
+      const ok = el("button", "btn primary", "Salvar"); ok.onclick = () => renomearPasta(nome, inp.value);
+      const no = el("button", "btn ghost", "Cancelar"); no.onclick = () => render();
+      linha.appendChild(inp); linha.appendChild(ok); linha.appendChild(no);
+      c.appendChild(linha); inp.focus(); inp.select();
+    };
+    const del = el("button", "btn danger", "Apagar");
+    del.onclick = () => {
+      if (del.dataset.confirma) { apagarPasta(nome); return; }
+      del.dataset.confirma = "1";
+      del.textContent = lista.length ? "Apagar s\u00f3 a pasta?" : "Confirmar?";
+      setTimeout(() => { if (del.isConnected) { delete del.dataset.confirma; del.textContent = "Apagar"; } }, 4500);
+    };
+    act.appendChild(ab); act.appendChild(ren); act.appendChild(el("div", "spacer")); act.appendChild(del);
+    c.appendChild(act);
+  }
+  return c;
+}
+
 function telaBiblioteca() {
   const w = el("div", "wrap");
   const head = el("div", "lib-head");
   const t = el("div");
-  const b = el("div", "brand"); b.innerHTML = "Púlpito<span>.</span>";
+  const b = el("div", "brand"); b.innerHTML = "P\u00falpito<span>.</span>";
   t.appendChild(b);
-  t.appendChild(el("div", "eyebrow", "esboços guardados neste aparelho"));
+  t.appendChild(el("div", "eyebrow", S.podeNuvem ? "esbo\u00e7os sincronizados" : "esbo\u00e7os neste aparelho"));
   head.appendChild(t); head.appendChild(el("div", "spacer"));
   const temas = el("button", "btn ghost", temaRotulo()); temas.onclick = trocaTema; head.appendChild(temas);
   const exp = el("button", "btn ghost", "Exportar"); exp.onclick = exportar; head.appendChild(exp);
@@ -502,55 +626,69 @@ function telaBiblioteca() {
   const imp = el("input"); imp.type = "file"; imp.id = "f-import"; imp.accept = ".json,application/json"; imp.hidden = true;
   imp.addEventListener("change", e => { const f = e.target.files[0]; if (f) importar(f); e.target.value = ""; });
   head.appendChild(impLabel); head.appendChild(imp);
-  const novo = el("button", "btn primary", "+ Novo esboço"); novo.onclick = () => { S.atual = null; S.view = "edit"; render(); };
+  const novo = el("button", "btn primary", "+ Novo esbo\u00e7o");
+  novo.onclick = () => { S.atual = null; S.serieSugerida = S.pastaAberta || ""; S.view = "edit"; render(); };
   head.appendChild(novo);
   w.appendChild(head);
 
-  if (!S.sermoes.length) {
+  // dentro de uma pasta
+  if (S.pastaAberta !== null) {
+    const voltar = el("button", "btn ghost", "\u2190 Todas as pastas");
+    voltar.onclick = () => { S.pastaAberta = null; render(); };
+    const topo = el("div", "row"); topo.style.marginBottom = "10px"; topo.appendChild(voltar);
+    w.appendChild(topo);
+    w.appendChild(el("div", "brand", S.pastaAberta || "Sem pasta"));
+    const lista = daPasta(S.pastaAberta);
+    w.appendChild(el("div", "eyebrow", lista.length === 1 ? "1 esbo\u00e7o" : lista.length + " esbo\u00e7os"));
+    const cards = el("div", "cards"); cards.style.marginTop = "14px";
+    if (!lista.length) {
+      const e = el("div", "empty");
+      e.appendChild(el("p", null, "Esta pasta ainda est\u00e1 vazia. Crie um esbo\u00e7o e escolha esta pasta no campo \u201cPasta (s\u00e9rie)\u201d."));
+      w.appendChild(e);
+    } else { lista.forEach(s => cards.appendChild(cardSermao(s))); w.appendChild(cards); }
+    return w;
+  }
+
+  const pastas = listaPastas();
+  const soltos = S.sermoes.filter(s => !(s.serie || "").trim());
+
+  if (!S.sermoes.length && !pastas.length) {
     const e = el("div", "empty");
-    e.appendChild(el("div", "brand", "Nenhum esboço ainda"));
-    e.appendChild(el("p", null, "Abra o arquivo do Word ou cole o texto — o esboço é lido como está, com os movimentos, os versículos e as marcas de aplicação e ilustração. Os esboços salvos aparecem nesta tela, prontos para o púlpito."));
+    e.appendChild(el("div", "brand", "Nenhum esbo\u00e7o ainda"));
+    e.appendChild(el("p", null, "Abra o arquivo do Word ou cole o texto \u2014 o esbo\u00e7o \u00e9 lido como est\u00e1, com os movimentos, os vers\u00edculos e as marcas de aplica\u00e7\u00e3o e ilustra\u00e7\u00e3o. Os esbo\u00e7os salvos aparecem nesta tela, prontos para o p\u00falpito."));
     const r = el("div", "row");
     const arq = el("button", "btn primary", "Abrir arquivo .docx"); arq.onclick = () => { S.atual = null; S.abrirArquivo = true; S.view = "edit"; render(); };
-    const n = el("button", "btn", "Colar um esboço"); n.onclick = () => { S.atual = null; S.view = "edit"; render(); };
+    const n = el("button", "btn", "Colar um esbo\u00e7o"); n.onclick = () => { S.atual = null; S.view = "edit"; render(); };
     const ex = el("button", "btn ghost", "Ver com um exemplo"); ex.onclick = () => { S.atual = { exemplo: true }; S.view = "edit"; render(); };
     r.appendChild(arq); r.appendChild(n); r.appendChild(ex); e.appendChild(r);
     w.appendChild(e);
+    w.appendChild(formNovaPasta());
     return w;
   }
 
   const cards = el("div", "cards");
-  S.sermoes.forEach(s => {
-    const doc = parse(s.texto), m = metricas(doc.blocos);
-    const c = el("div", "card");
-    const abrir = el("button", "card", s.titulo || "(sem título)");
-    abrir.style.cssText = "border:none;box-shadow:none;padding:0;background:none;gap:6px";
-    abrir.innerHTML = "";
-    const h = el("h3", null, s.titulo || "(sem título)");
-    abrir.appendChild(h);
-    if (s.ref) abrir.appendChild(el("div", "ref", s.ref));
-    const meta = el("div", "meta");
-    meta.appendChild(el("span", null, s.alvo + " min"));
-    meta.appendChild(el("span", null, m.corpo + " palavras"));
-    if (m.movs) meta.appendChild(el("span", null, m.movs + " movimentos"));
-    abrir.appendChild(meta);
-    abrir.onclick = () => abrirPulpito(s.id);
-    c.appendChild(abrir);
-    const act = el("div", "card-actions");
-    const p = el("button", "btn primary", "Pregar"); p.onclick = () => abrirPulpito(s.id);
-    const ed = el("button", "btn", "Editar"); ed.onclick = () => { S.atual = s; S.view = "edit"; render(); };
-    const del = el("button", "btn danger", "Apagar");
-    del.onclick = () => {
-      if (del.dataset.confirma) { apagar(s.id).then(render); return; }
-      del.dataset.confirma = "1"; del.textContent = "Confirmar?";
-      setTimeout(() => { if (del.isConnected) { delete del.dataset.confirma; del.textContent = "Apagar"; } }, 4000);
-    };
-    act.appendChild(p); act.appendChild(ed); act.appendChild(el("div", "spacer")); act.appendChild(del);
-    c.appendChild(act);
-    cards.appendChild(c);
-  });
+  pastas.forEach(nome => cards.appendChild(cardPasta(nome)));
+  if (soltos.length) cards.appendChild(cardPasta(""));
   w.appendChild(cards);
+  w.appendChild(formNovaPasta());
   return w;
+}
+
+function formNovaPasta() {
+  const box = el("div", "novapasta");
+  const btn = el("button", "btn", "+ Nova pasta");
+  btn.onclick = () => {
+    btn.hidden = true;
+    const inp = el("input"); inp.placeholder = "Nome da s\u00e9rie, por exemplo: Fundamentos da F\u00e9"; inp.setAttribute("aria-label", "Nome da nova pasta");
+    const ok = el("button", "btn primary", "Criar");
+    const cancelar = el("button", "btn ghost", "Cancelar");
+    ok.onclick = () => { if (criarPasta(inp.value)) render(); };
+    cancelar.onclick = () => render();
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") ok.onclick(); });
+    box.appendChild(inp); box.appendChild(ok); box.appendChild(cancelar); inp.focus();
+  };
+  box.appendChild(btn);
+  return box;
 }
 
 function telaEditor() {
@@ -579,6 +717,8 @@ function telaEditor() {
     <div class="row">
       <div class="field" style="flex:2 1 220px"><label for="f-titulo">Título</label><input id="f-titulo" placeholder="O REI QUE…"></div>
       <div class="field" style="flex:1 1 140px"><label for="f-ref">Referência</label><input id="f-ref" placeholder="Mateus 5.33-37"></div>
+      <div class="field" style="flex:1 1 180px"><label for="f-serie">Pasta (série)</label><select id="f-serie"></select>
+        <input id="f-serie-nova" placeholder="Nome da nova pasta" hidden></div>
       <div class="field" style="flex:0 1 130px"><label for="f-alvo">Tempo (min)</label><input id="f-alvo" type="number" min="5" max="120" step="1" value="35"></div>
     </div>`;
   w.appendChild(campos);
@@ -590,6 +730,13 @@ function telaEditor() {
   acoes.appendChild(salvarBtn); acoes.appendChild(soSalvar); w.appendChild(acoes);
 
   const ta = $("#f-texto", w), fT = $("#f-titulo", w), fR = $("#f-ref", w), fA = $("#f-alvo", w);
+  const fS = $("#f-serie", w), fSn = $("#f-serie-nova", w);
+  const atual = s ? (s.serie || "") : (S.serieSugerida || "");
+  S.serieSugerida = "";
+  [["", "Sem pasta"]].concat(listaPastas().map(n => [n, n])).concat([["__nova__", "Nova pasta\u2026"]])
+    .forEach(([v, r]) => { const o = document.createElement("option"); o.value = v; o.textContent = r; fS.appendChild(o); });
+  fS.value = [...fS.options].some(o => o.value === atual) ? atual : "";
+  fS.addEventListener("change", () => { fSn.hidden = fS.value !== "__nova__"; if (!fSn.hidden) fSn.focus(); });
   if (s) { ta.value = s.texto; fT.value = s.titulo; fR.value = s.ref || ""; fA.value = s.alvo; }
   else if (S.atual && S.atual.exemplo) { ta.value = EXEMPLO; }
 
@@ -635,10 +782,13 @@ function telaEditor() {
 
   const monta = () => {
     const doc = parse(ta.value);
+    let serie = fS.value === "__nova__" ? (fSn.value || "").trim() : fS.value;
+    if (serie && !listaPastas().includes(serie)) { S.pastas = [...(S.pastas || []), serie]; salvarLocal(); }
     return {
       id: s ? s.id : uid(),
       titulo: (fT.value || doc.titulo || "Sem título").trim(),
       ref: (fR.value || doc.ref || "").trim(),
+      serie: serie,
       alvo: Math.max(5, Math.min(120, parseInt(fA.value, 10) || 35)),
       texto: ta.value,
       criadoEm: s ? s.criadoEm : Date.now()
@@ -924,6 +1074,7 @@ CONCLUSÃO
   if (local.tema) { S.tema = local.tema; document.documentElement.setAttribute("data-theme", local.tema); }
   S.ps = local.ps || 21;
   S.sermoes = local.sermoes || [];
+  S.pastas = local.pastas || [];
   render();
   await carregar();
   if (S.view === "lib") render();

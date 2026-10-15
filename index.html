@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Púlpito</title>
+<meta name="description" content="Esboços de sermão com cronômetro e ritmo por movimento.">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#1E3A6B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Púlpito">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="icon" href="./icon-192.png">
+<style>
+html,body{margin:0}
+:root{color-scheme:light; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px)}
+img{max-width:100%}
+[hidden]{display:none!important}
+
+/* Layout: biblioteca em cartões → editor de colagem → leitura corrida com barra de tempo fixa em cima e controles fixos embaixo. */
+:root{
+  --bg:#F5F6F8; --surface:#FFFFFF; --surface-2:#EDEFF3;
+  --fg:#141921; --muted:#5B6673; --line:#D8DDE4;
+  --navy:#1E3A6B; --navy-soft:#E6EBF5;
+  --wine:#8C2033; --wine-soft:#F6E7E9;
+  --ochre:#8A5A0B; --ochre-soft:#F7EEDC;
+  --verde:#1A6049; --verde-soft:#E2F0E9;
+  --roxo:#5B3A96; --roxo-soft:#EDE8F8;
+  --ahead:#1C6B4C; --behind:#A8641B; --over:#B0241C;
+  --shadow:0 1px 2px rgba(20,25,33,.06), 0 6px 20px rgba(20,25,33,.07);
+  --display: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, sans-serif;
+  --ps:21; /* corpo do púlpito, em px */
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0D1117; --surface:#161C25; --surface-2:#1E2633;
+  --fg:#E7E9ED; --muted:#98A3B1; --line:#2A3443;
+  --navy:#9BBCF0; --navy-soft:#1A2740;
+  --wine:#EB9AA4; --wine-soft:#2E1C21;
+  --ochre:#DFB25C; --ochre-soft:#2C2416;
+  --verde:#6FD1AB; --verde-soft:#14281F;
+  --roxo:#B49BEE; --roxo-soft:#211B33;
+  --ahead:#64D3A6; --behind:#E0A95C; --over:#FF7A6B;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0D1117; --surface:#161C25; --surface-2:#1E2633;
+  --fg:#E7E9ED; --muted:#98A3B1; --line:#2A3443;
+  --navy:#9BBCF0; --navy-soft:#1A2740;
+  --wine:#EB9AA4; --wine-soft:#2E1C21;
+  --ochre:#DFB25C; --ochre-soft:#2C2416;
+  --verde:#6FD1AB; --verde-soft:#14281F;
+  --roxo:#B49BEE; --roxo-soft:#211B33;
+  --ahead:#64D3A6; --behind:#E0A95C; --over:#FF7A6B;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-text-size-adjust:100%}
+button,input,textarea,select{font:inherit; color:inherit}
+button{cursor:pointer; background:none; border:none}
+:focus-visible{outline:2px solid var(--navy); outline-offset:2px; border-radius:6px}
+.wrap{padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); padding-block:18px 28px; max-width:860px; margin:0 auto}
+h1,h2,h3{text-wrap:balance; margin:0}
+.eyebrow{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600}
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:10px 15px; border-radius:10px; background:var(--surface); border:1px solid var(--line); font-weight:500; font-size:14px; box-shadow:var(--shadow)}
+.btn.primary{background:var(--navy); border-color:var(--navy); color:#fff}
+:root[data-theme="dark"] .btn.primary, :root:not([data-theme="light"]) .btn.primary{color:#0D1117}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .btn.primary{color:#fff} }
+.btn.ghost{background:transparent; box-shadow:none}
+.btn.danger{color:var(--over); border-color:var(--line)}
+.btn:disabled{opacity:.45; cursor:default}
+.row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+.spacer{flex:1 1 auto}
+
+/* ---------- biblioteca ---------- */
+.lib-head{display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:18px}
+.brand{font-family:var(--display); font-weight:700; font-size:27px; letter-spacing:-.01em; line-height:1.1}
+.brand span{color:var(--navy)}
+.cards{display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); padding:16px; display:flex; flex-direction:column; gap:8px; min-width:0; text-align:left; width:100%}
+.card h3{font-family:var(--display); font-size:19px; font-weight:600; line-height:1.25; min-width:0; overflow-wrap:anywhere}
+.card .ref{color:var(--wine); font-family:var(--display); font-weight:600; font-size:14px}
+.card .meta{display:flex; gap:12px; flex-wrap:wrap; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums}
+.card-actions{display:flex; gap:6px; border-top:1px solid var(--line); padding-top:10px; margin-top:2px}
+.card-actions .btn{padding:7px 11px; font-size:13px; box-shadow:none}
+.empty{background:var(--surface); border:1px dashed var(--line); border-radius:14px; padding:26px 20px; text-align:center; display:grid; gap:12px; justify-items:center}
+.empty p{color:var(--muted); font-size:14px; max-width:42ch; margin:0; line-height:1.5}
+
+/* ---------- editor ---------- */
+.field{display:grid; gap:6px; margin-bottom:14px}
+.field label{font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.03em}
+.field input, .field textarea{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:11px 13px; width:100%; font-size:15px}
+.field textarea{min-height:46vh; font-family:var(--display); line-height:1.5; resize:vertical}
+.field .hint{font-size:12px; color:var(--muted); line-height:1.5}
+.stats{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 16px}
+.stat{background:var(--surface-2); border-radius:9px; padding:7px 11px; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
+.stat b{color:var(--fg); font-weight:600}
+.drop{border:1px dashed var(--line); background:var(--surface); border-radius:14px; padding:18px 16px; display:grid; gap:9px; justify-items:center; text-align:center; margin-bottom:16px}
+.drop.on{border-color:var(--navy); background:var(--navy-soft)}
+.drop b{font-family:var(--display); font-size:17px; font-weight:600}
+.drop .ou{font-size:12px; color:var(--muted); letter-spacing:.1em; text-transform:uppercase}
+.drop .hint{font-size:12px; color:var(--muted); line-height:1.5; max-width:46ch}
+.drop label.btn{cursor:pointer}
+
+/* ---------- púlpito ---------- */
+#view-pulpito{position:relative}
+.topbar{position:sticky; top:env(safe-area-inset-top,0px); z-index:30; background:var(--surface); border-bottom:1px solid var(--line);
+  padding-left:max(14px, env(safe-area-inset-left,0px)); padding-right:max(14px, env(safe-area-inset-right,0px)); padding-block:9px 7px; box-shadow:var(--shadow)}
+.topbar.flash{animation:flash 1.6s ease-out 2}
+@keyframes flash{0%,100%{background:var(--surface)} 35%{background:var(--navy-soft)}}
+@media (prefers-reduced-motion: reduce){ .topbar.flash{animation:none; outline:2px solid var(--navy); outline-offset:-2px} }
+.clockrow{display:flex; align-items:baseline; gap:12px}
+.clock{font-family:var(--ui); font-weight:600; font-size:34px; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.clock.warn{color:var(--behind)} .clock.over{color:var(--over)}
+.remain{font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums}
+.pace{margin-left:auto; font-size:13px; font-weight:600; padding:5px 10px; border-radius:999px; background:var(--surface-2); font-variant-numeric:tabular-nums; white-space:nowrap}
+.pace.ahead{color:var(--ahead)} .pace.behind{color:var(--behind)} .pace.late{color:var(--over)}
+.track{position:relative; height:9px; margin:9px 0 6px; display:flex; gap:2px}
+.seg{flex:1 1 auto; background:var(--surface-2); border-radius:3px; position:relative; overflow:hidden; min-width:3px; padding:0; border:none}
+.seg.done i{width:100%} .seg i{position:absolute; inset:0 auto 0 0; width:0; background:var(--navy); display:block}
+.seg.cur{box-shadow:0 0 0 2px var(--navy)}
+.ghost-tick{position:absolute; top:-3px; width:2px; height:15px; background:var(--muted); border-radius:2px; transform:translateX(-1px)}
+.ghost-tick.late{background:var(--over)}
+.wherebar{display:flex; gap:8px; align-items:center; font-size:12px; color:var(--muted); min-width:0}
+.wherebar b{color:var(--navy); font-weight:600; font-family:var(--display); font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+#sermao{padding-left:max(18px, env(safe-area-inset-left,0px)); padding-right:max(18px, env(safe-area-inset-right,0px));
+  padding-block:20px 0; max-width:48rem; margin:0 auto; font-family:var(--display); font-size:calc(var(--ps) * 1px); line-height:1.52}
+#sermao .doc-title{font-size:1.12em; font-weight:700; text-align:center; line-height:1.3; color:var(--navy); margin-bottom:.2em}
+#sermao .doc-sub{text-align:center; color:var(--muted); font-size:.62em; font-family:var(--ui); letter-spacing:.04em; text-transform:uppercase; margin-bottom:1.4em}
+.sec{scroll-margin-top:120px}
+.head{font-weight:700; color:var(--navy); text-align:center; font-size:.95em; letter-spacing:.02em; margin:1.5em 0 .5em; padding:.25em .4em; background:var(--navy-soft); border-radius:8px}
+.mov{margin:1.7em 0 .6em; border-left:4px solid var(--navy); padding-left:.6em}
+.mov .n{font-family:var(--ui); font-size:.55em; font-weight:600; letter-spacing:.12em; color:var(--muted)}
+.mov h2{font-size:1.06em; font-weight:700; color:var(--navy); line-height:1.25}
+.mov .vv{font-family:var(--ui); font-size:.58em; color:var(--wine); font-weight:500}
+.big{margin:1em 0; padding:.7em .85em; border:1px solid var(--wine); border-radius:12px; background:var(--wine-soft); color:var(--wine); font-weight:600; font-size:1.02em; line-height:1.4}
+.map{margin:.8em 0; padding:.55em .8em; border-radius:10px; background:var(--surface-2); color:var(--muted); font-size:.84em; line-height:1.45}
+.verse{margin:.85em 0; padding:.5em .9em; border-left:3px solid var(--wine); background:var(--wine-soft); color:var(--wine); font-style:italic; font-weight:500; line-height:1.45}
+.lit{margin:.7em 0; padding:.5em .85em; border-left:3px solid var(--navy); background:var(--navy-soft); font-weight:600}
+.bloco{font-family:var(--ui); font-size:.56em; font-weight:600; letter-spacing:.14em; color:var(--navy); margin:1.3em 0 .35em; display:flex; align-items:center; gap:8px}
+.bloco::after{content:""; flex:1; height:1px; background:var(--line)}
+.it{display:flex; gap:.45em; margin:.52em 0; align-items:baseline}
+.it.l1{padding-left:1.4em} .it.l2{padding-left:2.8em}
+.it .mk{color:var(--navy); font-weight:700; flex:none; font-variant-numeric:tabular-nums}
+.it.l1 .mk, .it.l2 .mk{font-weight:600; color:var(--muted)}
+.it .tx{min-width:0; flex:1}
+.it.l0 > .tx{font-weight:500}
+.it.mark{padding:.5em .85em; border-left:3px solid var(--line); border-radius:0 10px 10px 0; margin:.8em 0; background:var(--surface-2)}
+.it.mark.l1{padding-left:.85em; margin-left:1.4em}
+.it.mark.l2{padding-left:.85em; margin-left:2.8em}
+.it.mark .tx{display:block}
+.it.m-ap{border-color:var(--verde); background:var(--verde-soft)}
+.it.m-il{border-color:var(--ochre); background:var(--ochre-soft)}
+.it.m-sl{border-color:var(--roxo); background:var(--roxo-soft)}
+.labels{display:flex; flex-wrap:wrap; gap:.35em; margin-bottom:.3em}
+.labels.cent{justify-content:center}
+.head .labels{margin-bottom:.35em}
+.big .labels, .map .labels{margin-bottom:.4em}
+.tag{font-family:var(--ui); font-size:.56em; font-weight:600; letter-spacing:.1em; padding:.22em .6em; border-radius:999px; white-space:nowrap; align-self:flex-start}
+.tag.ap{background:var(--verde); color:var(--verde-soft)}
+.tag.il{background:var(--ochre); color:var(--ochre-soft)}
+.tag.sl{background:var(--roxo); color:var(--roxo-soft)}
+.endpad{height:46vh}
+
+.bottombar{position:fixed; left:0; right:0; bottom:0; z-index:30; background:var(--surface); border-top:1px solid var(--line);
+  padding-left:max(12px, env(safe-area-inset-left,0px)); padding-right:max(12px, env(safe-area-inset-right,0px));
+  padding-top:9px; padding-bottom:calc(9px + env(safe-area-inset-bottom,0px)); display:flex; gap:8px; align-items:center}
+.cbtn{width:44px; height:44px; border-radius:12px; border:1px solid var(--line); background:var(--surface-2); display:grid; place-items:center; font-size:15px; font-weight:600; flex:none}
+.cbtn.go{background:var(--navy); border-color:var(--navy); color:#fff; width:58px}
+:root[data-theme="dark"] .cbtn.go{color:#0D1117}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .cbtn.go{color:#0D1117} }
+.sheet{position:fixed; inset:auto 0 0 0; z-index:40; background:var(--surface); border-top:1px solid var(--line); border-radius:16px 16px 0 0; box-shadow:var(--shadow);
+  padding-left:max(18px, env(safe-area-inset-left,0px)); padding-right:max(18px, env(safe-area-inset-right,0px));
+  padding-top:16px; padding-bottom:calc(18px + env(safe-area-inset-bottom,0px)); max-height:78vh; overflow:auto; max-width:860px; margin:0 auto}
+.sheet h3{font-family:var(--display); font-size:19px; margin-bottom:4px}
+.tbl{width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; font-variant-numeric:tabular-nums}
+.tbl th{text-align:left; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:600; padding:6px 4px; border-bottom:1px solid var(--line)}
+.tbl td{padding:7px 4px; border-bottom:1px solid var(--line)}
+.tbl td.d{font-weight:600; text-align:right}
+.tbl td.d.ahead{color:var(--ahead)} .tbl td.d.behind{color:var(--behind)}
+.tbl td.nm{font-family:var(--display); font-weight:600}
+.scrim{position:fixed; inset:0; z-index:35; background:rgba(10,14,20,.42)}
+.toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(76px + env(safe-area-inset-bottom,0px)); z-index:50; background:var(--fg); color:var(--bg); padding:9px 15px; border-radius:999px; font-size:13px; font-weight:500; box-shadow:var(--shadow)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="./jszip.min.js"></script>
+<script>
+"use strict";
+/* ========== utilidades ========== */
+const $ = (s, r) => (r || document).querySelector(s);
+const el = (t, c, txt) => { const n = document.createElement(t); if (c) n.className = c; if (txt != null) n.textContent = txt; return n; };
+const esc = s => String(s).replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+const mmss = ms => { const neg = ms < 0; ms = Math.abs(ms); const t = Math.floor(ms / 1000); const m = Math.floor(t / 60), s = t % 60; return (neg ? "-" : "") + m + ":" + String(s).padStart(2, "0"); };
+const uid = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const LS = "pulpito.v2";
+
+function lsGet() { try { return JSON.parse(localStorage.getItem(LS) || "{}"); } catch (e) { return {}; } }
+function lsSet(o) { try { localStorage.setItem(LS, JSON.stringify(o)); } catch (e) { } }
+
+/* ========== estado ========== */
+const S = {
+  view: "lib", sermoes: [], atual: null, db: null, podeNuvem: false,
+  ps: 21, tema: null,
+  t: { rodando: false, t0: 0, acum: 0, alertas: {}, log: [], secAtual: -1 },
+  secs: [], tick: null
+};
+
+/* ========== armazenamento (só neste aparelho) ========== */
+async function carregar() {
+  const local = lsGet();
+  S.ps = local.ps || 21;
+  S.sermoes = (local.sermoes || []).sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
+}
+function salvarLocal() { const o = lsGet(); o.sermoes = S.sermoes; o.ps = S.ps; lsSet(o); }
+async function salvar(s) {
+  s.atualizadoEm = Date.now();
+  const i = S.sermoes.findIndex(x => x.id === s.id);
+  if (i >= 0) S.sermoes[i] = s; else S.sermoes.unshift(s);
+  S.sermoes.sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
+  salvarLocal();
+}
+async function apagar(id) { S.sermoes = S.sermoes.filter(x => x.id !== id); salvarLocal(); }
+
+function exportar() {
+  if (!S.sermoes.length) return toast("Não há esboços para exportar.");
+  const dados = JSON.stringify({ app: "pulpito", versao: 1, em: new Date().toISOString(), sermoes: S.sermoes }, null, 1);
+  const url = URL.createObjectURL(new Blob([dados], { type: "application/json" }));
+  const a = document.createElement("a");
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  a.href = url; a.download = "esbocos-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + ".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast(S.sermoes.length + " esboço(s) no arquivo.");
+}
+async function importar(file) {
+  try {
+    const dados = JSON.parse(await file.text());
+    const lista = Array.isArray(dados) ? dados : (dados.sermoes || []);
+    if (!lista.length) return toast("Esse arquivo não tem esboços.");
+    let novos = 0, atualizados = 0;
+    lista.forEach(s => {
+      if (!s || !s.id || !s.texto) return;
+      const i = S.sermoes.findIndex(x => x.id === s.id);
+      if (i < 0) { S.sermoes.push(s); novos++; }
+      else if ((s.atualizadoEm || 0) > (S.sermoes[i].atualizadoEm || 0)) { S.sermoes[i] = s; atualizados++; }
+    });
+    S.sermoes.sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
+    salvarLocal(); render();
+    toast(novos + " novo(s), " + atualizados + " atualizado(s).");
+  } catch (e) { toast("Não consegui ler esse arquivo de esboços."); }
+}
+
+/* ========== leitor do esboço ==========
+   Entende o formato dos esboços: cabeçalhos em caixa alta, movimentos em
+   romanos, [BIG IDEIA], versículos, itens 1./a./i., blocos ▸, literais ▸▸,
+   (APLICAÇÃO), (ILUSTRAÇÃO) e [SLIDE NN].                                   */
+const ROMANO = /^(X{0,2})(IX|IV|V?I{0,3})$/;
+/* tira as etiquetas do começo do trecho e devolve o texto limpo */
+function puxaTags(t, tags) {
+  for (let passo = 0; passo < 4; passo++) {
+    const antes = t;
+    t = t.replace(/^[[(]\s*SLIDE\s*(\d*)[^\])]*[\])]\s*[:–-]?\s*/i, (m, n) => { tags.push(["sl", n ? "SLIDE " + n : "SLIDE"]); return ""; });
+    t = t.replace(/^[[(]\s*APLICA[ÇC][ÃA]O[^\])]*[\])]\s*[:–-]?\s*/i, () => { tags.push(["ap", "APLICAÇÃO"]); return ""; });
+    t = t.replace(/^[[(]\s*ILUSTRA[ÇC][ÃA]O[^\])]*[\])]\s*[:–-]?\s*/i, () => { tags.push(["il", "ILUSTRAÇÃO"]); return ""; });
+    if (t === antes) break;
+  }
+  return t;
+}
+function parse(bruto) {
+  const linhas = String(bruto || "").replace(/\r/g, "").split("\n");
+  const blocos = []; let titulo = null, ref = null, nivelAnt = -1;
+
+  for (const cru of linhas) {
+    let t = cru.replace(/\t/g, "  ").trim();
+    if (!t) continue;
+
+    // marcadores que saem do texto
+    const tags = [];
+    t = puxaTags(t, tags);
+    if (!t) continue;
+
+    // título do documento: primeira linha com | ou com travessão + nome
+    if (!titulo && /\|/.test(t)) {
+      const p = t.split("|").map(x => x.trim());
+      const cab = p[0];
+      const m = cab.match(/^(.*?)[\s]*[—–-]\s*([^—–]+)$/);
+      titulo = m ? m[1].trim() : cab; ref = m ? m[2].trim() : (p[1] || "");
+      blocos.push({ k: "titulo", t: titulo, sub: [ref, p.slice(1).join(" · ")].filter(Boolean).join("  ·  ") });
+      continue;
+    }
+
+    // literal (fala exata)
+    if (/^▸▸/.test(t)) { blocos.push({ k: "lit", t: t.replace(/^▸▸\s*/, ""), tags }); continue; }
+    // versículo marcado na leitura do arquivo
+    if (/^>\s?/.test(t)) { blocos.push({ k: "verso", t: t.replace(/^>\s?/, ""), tags }); continue; }
+    // rótulo de bloco
+    if (/▸\s*$/.test(t)) { blocos.push({ k: "bloco", t: t.replace(/\s*▸\s*$/, "") }); continue; }
+    // big ideia
+    if (/^\[?\s*BIG\s*IDEIA\s*\]?\s*:?/i.test(t)) { blocos.push({ k: "big", t: t.replace(/^\[?\s*BIG\s*IDEIA\s*\]?\s*:?\s*/i, ""), tags }); continue; }
+    // anúncio dos movimentos
+    if (/^(caminharemos|veremos|percorreremos)\b/i.test(t) && /\bI\s*[–-]/.test(t)) { blocos.push({ k: "map", t, tags }); continue; }
+    // movimento romano
+    const mov = t.match(/^([IVX]{1,4})\s*[–—-]\s*(.+)$/);
+    if (mov && ROMANO.test(mov[1]) && mov[1].length) {
+      let resto = mov[2].trim(), vv = "";
+      const mv = resto.match(/\(([^)]*v{1,2}[^)]*)\)\s*$/i);
+      if (mv) { vv = mv[1].trim(); resto = resto.slice(0, mv.index).trim(); }
+      blocos.push({ k: "mov", n: mov[1], t: resto, vv, tags }); nivelAnt = -1; continue;
+    }
+    // leitura do texto
+    if (/^(LER TEXTO|LEITURA|TEXTO)\s*:/i.test(t)) { blocos.push({ k: "head", t, leve: true, tags }); continue; }
+    // itens numerados (a etiqueta pode vir antes ou depois do número)
+    let m, nivel = null, mk = "";
+    if ((m = t.match(/^(\d{1,2})\s*[.)]\s+(.*)$/))) { nivel = 0; mk = m[1] + "."; t = m[2]; }
+    else if ((m = t.match(/^([a-hj-u-wyz])\s*[.)]\s+(.*)$/i))) { nivel = 1; mk = m[1].toLowerCase() + "."; t = m[2]; }
+    else if ((m = t.match(/^(i{1,3}|iv|vi{0,3}|ix|x)\s*[.)]\s+(.*)$/i))) {
+      nivel = (nivelAnt >= 1 || m[1].length > 1) ? 2 : 1; mk = m[1].toLowerCase() + "."; t = m[2];
+    }
+    if (nivel !== null) {
+      t = puxaTags(t, tags);
+      blocos.push({ k: "it", n: nivel, mk, t, tags }); nivelAnt = nivel; continue;
+    }
+    // versículo: começa com número de versículo (comum ou sobrescrito)
+    if (/^[¹²³⁰⁴-⁹]/.test(t) || /^\d{1,3}\s+[^\s\d]/.test(t)) { blocos.push({ k: "verso", t, tags }); continue; }
+    // cabeçalho em caixa alta
+    const letras = t.replace(/[^A-Za-zÀ-ÿ]/g, "");
+    if (letras.length > 1 && t === t.toUpperCase() && t.length <= 70) { blocos.push({ k: "head", t, tags }); nivelAnt = -1; continue; }
+    // parágrafo solto
+    blocos.push({ k: "it", n: 0, mk: "", t, tags });
+  }
+  return { titulo: titulo || "", ref: ref || "", blocos };
+}
+
+function metricas(blocos) {
+  let corpo = 0, escritura = 0, ap = 0, il = 0, movs = 0;
+  for (const b of blocos) {
+    const n = (b.t || "").split(/\s+/).filter(Boolean).length;
+    if (b.k === "verso") escritura += n; else if (b.k !== "titulo") corpo += n;
+    if (b.k === "mov") movs++;
+    (b.tags || []).forEach(([k]) => { if (k === "ap") ap++; if (k === "il") il++; });
+  }
+  return { corpo, escritura, ap, il, movs, cadencia: ap ? Math.round(corpo / ap) : 0 };
+}
+
+/* ========== leitura do arquivo do Word ==========
+   Abre o .docx, segue a numeração automática do Word (1. / a. / i.) e marca
+   os versículos em itálico, devolvendo o esboço como texto editável.        */
+const ROM = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii"];
+function marcador(nivel, n) {
+  if (nivel <= 0) return n + ".";
+  if (nivel === 1) return String.fromCharCode(97 + ((n - 1) % 26)) + ".";
+  return (ROM[(n - 1) % 12] || n) + ".";
+}
+function textoDoP(p) {
+  let t = "";
+  for (const r of Array.from(p.getElementsByTagName("w:r"))) {
+    for (const n of Array.from(r.childNodes)) {
+      if (n.nodeName === "w:t") t += n.textContent;
+      else if (n.nodeName === "w:tab" || n.nodeName === "w:br") t += " ";
+    }
+  }
+  return t.replace(/\s+/g, " ").trim();
+}
+async function lerArquivo(file) {
+  const nome = (file.name || "").toLowerCase();
+  if (/\.(txt|md|text)$/.test(nome)) return await file.text();
+  if (/\.doc$/.test(nome)) throw new Error("O formato antigo .doc não abre aqui. Abra no Word e salve como .docx.");
+  if (!/\.docx$/.test(nome)) throw new Error("Esse tipo de arquivo não é lido. Use .docx ou cole o texto.");
+  if (!window.JSZip) throw new Error("O leitor de .docx não carregou. Verifique a conexão e recarregue a página.");
+  let zip;
+  try { zip = await JSZip.loadAsync(file); } catch (e) { throw new Error("Não consegui abrir o arquivo. Ele pode estar corrompido."); }
+  const entrada = zip.file("word/document.xml");
+  if (!entrada) throw new Error("Esse .docx não tem o conteúdo esperado do Word.");
+  const xml = await entrada.async("string");
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length) throw new Error("Não consegui ler o conteúdo do arquivo.");
+
+  const linhas = [];
+  let numAnt = null, cont = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  for (const p of Array.from(doc.getElementsByTagName("w:p"))) {
+    const txt = textoDoP(p);
+    if (!txt) continue;
+    const pPr = p.getElementsByTagName("w:pPr")[0];
+    let marca = "", italico = false;
+    if (pPr) {
+      const numPr = pPr.getElementsByTagName("w:numPr")[0];
+      if (numPr) {
+        const li = numPr.getElementsByTagName("w:ilvl")[0];
+        const ni = numPr.getElementsByTagName("w:numId")[0];
+        const nivel = li ? (parseInt(li.getAttribute("w:val"), 10) || 0) : 0;
+        const numId = ni ? ni.getAttribute("w:val") : "x";
+        if (numId !== numAnt) { cont = cont.map(() => 0); numAnt = numId; }
+        cont[nivel] = (cont[nivel] || 0) + 1;
+        for (let k = nivel + 1; k < cont.length; k++) cont[k] = 0;
+        marca = marcador(nivel, cont[nivel]) + " ";
+      }
+    }
+    if (!marca) {
+      const its = Array.from(p.getElementsByTagName("w:i"));
+      italico = its.length > 0 && !/^[A-ZÀ-Ý0-9 ,.;:()–—-]+$/.test(txt.slice(0, 24));
+    }
+    linhas.push((italico ? "> " : "") + marca + txt);
+  }
+  if (!linhas.length) throw new Error("O arquivo não tem texto que eu consiga ler.");
+  return linhas.join("\n");
+}
+
+/* ========== desenho do esboço ========== */
+function corpoHTML(doc) {
+  const frag = document.createDocumentFragment();
+  const secs = [];
+  let secAtual = null;
+  const abreSec = (nome, node) => { node.classList.add("sec"); secs.push({ nome, node }); secAtual = node; };
+  const etiquetas = tags => {
+    if (!tags || !tags.length) return null;
+    const lb = el("div", "labels");
+    tags.forEach(([k, lbl]) => lb.appendChild(el("span", "tag " + k, lbl)));
+    return lb;
+  };
+  const corDoBloco = tags => {
+    const c = (tags || []).map(x => x[0]);
+    return c.includes("ap") ? "ap" : c.includes("il") ? "il" : c.includes("sl") ? "sl" : "";
+  };
+
+  for (const b of doc.blocos) {
+    let n;
+    if (b.k === "titulo") {
+      n = el("div"); const h = el("div", "doc-title", b.t); n.appendChild(h);
+      if (b.sub) n.appendChild(el("div", "doc-sub", b.sub));
+    } else if (b.k === "head") {
+      n = el("div", "head");
+      const lb = etiquetas(b.tags); if (lb) { lb.classList.add("cent"); n.appendChild(lb); }
+      n.appendChild(document.createTextNode(b.t));
+      if (!b.leve) abreSec(b.t.replace(/\s+/g, " ").trim(), n);
+    } else if (b.k === "mov") {
+      n = el("div", "mov");
+      const lb = etiquetas(b.tags); if (lb) n.appendChild(lb);
+      n.appendChild(el("div", "n", "MOVIMENTO " + b.n));
+      const h = el("h2", null, b.t); n.appendChild(h);
+      if (b.vv) n.appendChild(el("div", "vv", b.vv));
+      abreSec(b.n + " – " + b.t, n);
+    } else if (b.k === "big" || b.k === "map") {
+      n = el("div", b.k === "big" ? "big" : "map");
+      const lb = etiquetas(b.tags); if (lb) n.appendChild(lb);
+      n.appendChild(document.createTextNode(b.t));
+    }
+    else if (b.k === "verso" || b.k === "lit") {
+      n = el("div", b.k === "verso" ? "verse" : "lit");
+      const lb = etiquetas(b.tags); if (lb) n.appendChild(lb);
+      n.appendChild(document.createTextNode(b.t));
+    }
+    else if (b.k === "bloco") { n = el("div", "bloco", b.t); }
+    else {
+      const principal = corDoBloco(b.tags);
+      n = el("div", "it l" + b.n + (principal ? " mark m-" + principal : ""));
+      n.appendChild(el("span", "mk", b.mk || ""));
+      const tx = el("span", "tx");
+      const lb = etiquetas(b.tags); if (lb) tx.appendChild(lb);
+      tx.appendChild(document.createTextNode(b.t));
+      n.appendChild(tx);
+    }
+    frag.appendChild(n);
+  }
+  frag.appendChild(el("div", "endpad"));
+  return { frag, secs };
+}
+
+/* ========== telas ========== */
+function render() {
+  const app = $("#app");
+  app.innerHTML = "";
+  if (S.view === "lib") app.appendChild(telaBiblioteca());
+  else if (S.view === "edit") app.appendChild(telaEditor());
+  else app.appendChild(telaPulpito());
+  window.scrollTo(0, 0);
+}
+
+function telaBiblioteca() {
+  const w = el("div", "wrap");
+  const head = el("div", "lib-head");
+  const t = el("div");
+  const b = el("div", "brand"); b.innerHTML = "Púlpito<span>.</span>";
+  t.appendChild(b);
+  t.appendChild(el("div", "eyebrow", "esboços guardados neste aparelho"));
+  head.appendChild(t); head.appendChild(el("div", "spacer"));
+  const temas = el("button", "btn ghost", temaRotulo()); temas.onclick = trocaTema; head.appendChild(temas);
+  const exp = el("button", "btn ghost", "Exportar"); exp.onclick = exportar; head.appendChild(exp);
+  const impLabel = el("label", "btn ghost", "Importar"); impLabel.setAttribute("for", "f-import"); impLabel.style.cursor = "pointer";
+  const imp = el("input"); imp.type = "file"; imp.id = "f-import"; imp.accept = ".json,application/json"; imp.hidden = true;
+  imp.addEventListener("change", e => { const f = e.target.files[0]; if (f) importar(f); e.target.value = ""; });
+  head.appendChild(impLabel); head.appendChild(imp);
+  const novo = el("button", "btn primary", "+ Novo esboço"); novo.onclick = () => { S.atual = null; S.view = "edit"; render(); };
+  head.appendChild(novo);
+  w.appendChild(head);
+
+  if (!S.sermoes.length) {
+    const e = el("div", "empty");
+    e.appendChild(el("div", "brand", "Nenhum esboço ainda"));
+    e.appendChild(el("p", null, "Abra o arquivo do Word ou cole o texto — o esboço é lido como está, com os movimentos, os versículos e as marcas de aplicação e ilustração. Os esboços salvos aparecem nesta tela, prontos para o púlpito."));
+    const r = el("div", "row");
+    const arq = el("button", "btn primary", "Abrir arquivo .docx"); arq.onclick = () => { S.atual = null; S.abrirArquivo = true; S.view = "edit"; render(); };
+    const n = el("button", "btn", "Colar um esboço"); n.onclick = () => { S.atual = null; S.view = "edit"; render(); };
+    const ex = el("button", "btn ghost", "Ver com um exemplo"); ex.onclick = () => { S.atual = { exemplo: true }; S.view = "edit"; render(); };
+    r.appendChild(arq); r.appendChild(n); r.appendChild(ex); e.appendChild(r);
+    w.appendChild(e);
+    return w;
+  }
+
+  const cards = el("div", "cards");
+  S.sermoes.forEach(s => {
+    const doc = parse(s.texto), m = metricas(doc.blocos);
+    const c = el("div", "card");
+    const abrir = el("button", "card", s.titulo || "(sem título)");
+    abrir.style.cssText = "border:none;box-shadow:none;padding:0;background:none;gap:6px";
+    abrir.innerHTML = "";
+    const h = el("h3", null, s.titulo || "(sem título)");
+    abrir.appendChild(h);
+    if (s.ref) abrir.appendChild(el("div", "ref", s.ref));
+    const meta = el("div", "meta");
+    meta.appendChild(el("span", null, s.alvo + " min"));
+    meta.appendChild(el("span", null, m.corpo + " palavras"));
+    if (m.movs) meta.appendChild(el("span", null, m.movs + " movimentos"));
+    abrir.appendChild(meta);
+    abrir.onclick = () => abrirPulpito(s.id);
+    c.appendChild(abrir);
+    const act = el("div", "card-actions");
+    const p = el("button", "btn primary", "Pregar"); p.onclick = () => abrirPulpito(s.id);
+    const ed = el("button", "btn", "Editar"); ed.onclick = () => { S.atual = s; S.view = "edit"; render(); };
+    const del = el("button", "btn danger", "Apagar");
+    del.onclick = () => {
+      if (del.dataset.confirma) { apagar(s.id).then(render); return; }
+      del.dataset.confirma = "1"; del.textContent = "Confirmar?";
+      setTimeout(() => { if (del.isConnected) { delete del.dataset.confirma; del.textContent = "Apagar"; } }, 4000);
+    };
+    act.appendChild(p); act.appendChild(ed); act.appendChild(el("div", "spacer")); act.appendChild(del);
+    c.appendChild(act);
+    cards.appendChild(c);
+  });
+  w.appendChild(cards);
+  return w;
+}
+
+function telaEditor() {
+  const s = (S.atual && !S.atual.exemplo) ? S.atual : null;
+  const w = el("div", "wrap");
+  const head = el("div", "lib-head");
+  const voltar = el("button", "btn ghost", "← Biblioteca"); voltar.onclick = () => { S.view = "lib"; render(); };
+  head.appendChild(voltar); head.appendChild(el("div", "spacer"));
+  w.appendChild(head);
+  w.appendChild(el("div", "brand", s ? "Editar esboço" : "Novo esboço"));
+  w.appendChild(el("div", "eyebrow", "cole o texto como ele está no documento"));
+
+  const campos = el("div"); campos.style.marginTop = "18px";
+  campos.innerHTML = `
+    <div class="drop" id="drop">
+      <b>Arraste aqui o arquivo do Word</b>
+      <div class="ou">ou</div>
+      <label class="btn" for="f-file">Escolher arquivo .docx</label>
+      <input id="f-file" type="file" accept=".docx,.txt,.md" hidden>
+      <div class="hint">A numeração automática do Word, os versículos em itálico e as marcas de aplicação vêm junto. Se preferir, cole o texto no campo abaixo.</div>
+    </div>
+    <div class="field"><label for="f-texto">Esboço</label>
+      <textarea id="f-texto" placeholder="Cole aqui o esboço inteiro, da primeira linha do título até a última da conclusão."></textarea>
+      <div class="hint">A primeira linha com <b>|</b> vira título e referência. Movimentos em romanos (I – …), itens 1. / a. / i., versículos, (APLICAÇÃO), (ILUSTRAÇÃO) e [SLIDE NN] são reconhecidos sozinhos.</div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:2 1 220px"><label for="f-titulo">Título</label><input id="f-titulo" placeholder="O REI QUE…"></div>
+      <div class="field" style="flex:1 1 140px"><label for="f-ref">Referência</label><input id="f-ref" placeholder="Mateus 5.33-37"></div>
+      <div class="field" style="flex:0 1 130px"><label for="f-alvo">Tempo (min)</label><input id="f-alvo" type="number" min="5" max="120" step="1" value="35"></div>
+    </div>`;
+  w.appendChild(campos);
+
+  const stats = el("div", "stats"); w.appendChild(stats);
+  const acoes = el("div", "row");
+  const salvarBtn = el("button", "btn primary", "Salvar e pregar");
+  const soSalvar = el("button", "btn", "Só salvar");
+  acoes.appendChild(salvarBtn); acoes.appendChild(soSalvar); w.appendChild(acoes);
+
+  const ta = $("#f-texto", w), fT = $("#f-titulo", w), fR = $("#f-ref", w), fA = $("#f-alvo", w);
+  if (s) { ta.value = s.texto; fT.value = s.titulo; fR.value = s.ref || ""; fA.value = s.alvo; }
+  else if (S.atual && S.atual.exemplo) { ta.value = EXEMPLO; }
+
+  const atualiza = () => {
+    const doc = parse(ta.value), m = metricas(doc.blocos);
+    if (doc.titulo && !fT.value) fT.value = doc.titulo;
+    if (doc.ref && !fR.value) fR.value = doc.ref;
+    stats.innerHTML = "";
+    const add = (lbl, val) => { const x = el("div", "stat"); x.innerHTML = "<b>" + esc(val) + "</b> " + esc(lbl); stats.appendChild(x); };
+    add("palavras no corpo", m.corpo);
+    if (m.escritura) add("de escritura", m.escritura);
+    add("movimentos", m.movs);
+    add("aplicações", m.ap);
+    add("ilustrações", m.il);
+    if (m.cadencia) add("palavras por aplicação", m.cadencia);
+  };
+  ta.addEventListener("input", atualiza); atualiza();
+
+  // arquivo: seletor e arrastar-soltar
+  const drop = $("#drop", w), input = $("#f-file", w);
+  async function recebe(file) {
+    if (!file) return;
+    const antes = drop.querySelector("b").textContent;
+    drop.querySelector("b").textContent = "Lendo " + file.name + "…";
+    try {
+      const texto = await lerArquivo(file);
+      ta.value = texto;
+      const doc = parse(texto);
+      if (doc.titulo) fT.value = doc.titulo;
+      if (doc.ref) fR.value = doc.ref;
+      atualiza();
+      toast("Esboço lido do arquivo. Confira antes de salvar.");
+      ta.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (e) { toast(e.message || "Não consegui ler o arquivo."); }
+    drop.querySelector("b").textContent = antes;
+    input.value = "";
+  }
+  input.addEventListener("change", e => recebe(e.target.files[0]));
+  ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("on"); }));
+  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("on"); }));
+  drop.addEventListener("drop", e => { const f = e.dataTransfer && e.dataTransfer.files[0]; recebe(f); });
+  if (S.abrirArquivo) { S.abrirArquivo = false; setTimeout(() => input.click(), 120); }
+
+  const monta = () => {
+    const doc = parse(ta.value);
+    return {
+      id: s ? s.id : uid(),
+      titulo: (fT.value || doc.titulo || "Sem título").trim(),
+      ref: (fR.value || doc.ref || "").trim(),
+      alvo: Math.max(5, Math.min(120, parseInt(fA.value, 10) || 35)),
+      texto: ta.value,
+      criadoEm: s ? s.criadoEm : Date.now()
+    };
+  };
+  salvarBtn.onclick = async () => { if (!ta.value.trim()) return toast("Cole o esboço primeiro."); const n = monta(); await salvar(n); abrirPulpito(n.id); };
+  soSalvar.onclick = async () => { if (!ta.value.trim()) return toast("Cole o esboço primeiro."); await salvar(monta()); S.view = "lib"; render(); };
+  return w;
+}
+
+function abrirPulpito(id) {
+  S.atual = S.sermoes.find(x => x.id === id);
+  S.t = { rodando: false, t0: 0, acum: 0, alertas: {}, log: [], secAtual: -1 };
+  S.view = "pulpito"; render();
+}
+
+function telaPulpito() {
+  const s = S.atual;
+  const root = el("div");
+
+  const top = el("div", "topbar"); top.id = "topbar";
+  const cr = el("div", "clockrow");
+  const clock = el("div", "clock"); clock.id = "clock"; clock.textContent = "0:00";
+  const rem = el("div", "remain"); rem.id = "remain";
+  const pace = el("div", "pace"); pace.id = "pace"; pace.textContent = "parado";
+  cr.appendChild(clock); cr.appendChild(rem); cr.appendChild(pace);
+  top.appendChild(cr);
+  const track = el("div", "track"); track.id = "track"; top.appendChild(track);
+  const wb = el("div", "wherebar");
+  const onde = el("b"); onde.id = "onde"; onde.textContent = "—";
+  const prev = el("span"); prev.id = "prev";
+  wb.appendChild(onde); wb.appendChild(prev);
+  top.appendChild(wb);
+  root.appendChild(top);
+
+  const art = el("article"); art.id = "sermao"; art.style.setProperty("--ps", S.ps);
+  const { frag, secs } = corpoHTML(parse(s.texto));
+  art.appendChild(frag);
+  root.appendChild(art);
+
+  const bar = el("div", "bottombar");
+  const sair = el("button", "cbtn", "←"); sair.title = "Biblioteca"; sair.setAttribute("aria-label", "Voltar à biblioteca");
+  sair.onclick = () => { pararTick(); S.view = "lib"; render(); };
+  const go = el("button", "cbtn go", "▶"); go.id = "go"; go.setAttribute("aria-label", "Iniciar ou pausar");
+  go.onclick = alternaTimer;
+  const zera = el("button", "cbtn", "↺"); zera.setAttribute("aria-label", "Zerar o tempo");
+  zera.onclick = () => {
+    if (zera.dataset.c) { S.t = { rodando: false, t0: 0, acum: 0, alertas: {}, log: [], secAtual: -1 }; delete zera.dataset.c; zera.textContent = "↺"; $("#go").textContent = "▶"; pararTick(); pintaTempo(); return; }
+    zera.dataset.c = "1"; zera.textContent = "✓"; setTimeout(() => { if (zera.isConnected) { delete zera.dataset.c; zera.textContent = "↺"; } }, 3500);
+  };
+  const menos = el("button", "cbtn", "A−"); menos.setAttribute("aria-label", "Diminuir a letra");
+  menos.onclick = () => mudaFonte(-2);
+  const mais = el("button", "cbtn", "A+"); mais.setAttribute("aria-label", "Aumentar a letra");
+  mais.onclick = () => mudaFonte(2);
+  const fim = el("button", "cbtn", "⏱"); fim.setAttribute("aria-label", "Ver os tempos por movimento");
+  fim.onclick = abreResumo;
+  bar.appendChild(sair); bar.appendChild(el("div", "spacer")); bar.appendChild(menos); bar.appendChild(mais);
+  bar.appendChild(zera); bar.appendChild(go); bar.appendChild(fim);
+  root.appendChild(bar);
+
+  setTimeout(() => { montaTrilha(secs); pintaTempo(); }, 0);
+  return root;
+}
+
+/* ========== trilha e seções ========== */
+function montaTrilha(secs) {
+  const art = $("#sermao"); if (!art) return;
+  const topo = art.offsetTop, altura = art.scrollHeight - art.querySelector(".endpad").offsetHeight;
+  S.secs = secs.map((x, i) => {
+    const ini = x.node.offsetTop - topo;
+    return { nome: x.nome, node: x.node, ini, frac: Math.max(0, Math.min(1, ini / Math.max(1, altura))) };
+  });
+  if (!S.secs.length) S.secs = [{ nome: "Sermão", node: art.firstChild, ini: 0, frac: 0 }];
+  if (S.secs[0].frac > 0.02) S.secs.unshift({ nome: "Abertura", node: art.firstChild, ini: 0, frac: 0 });
+  S.secs.forEach((x, i) => { x.fim = i + 1 < S.secs.length ? S.secs[i + 1].frac : 1; });
+  S.alturaConteudo = altura; S.topoConteudo = topo;
+
+  const track = $("#track"); if (!track) return;
+  track.innerHTML = "";
+  S.secs.forEach((x, i) => {
+    const seg = el("button", "seg"); seg.style.flexGrow = String(Math.max(0.04, x.fim - x.frac));
+    seg.title = x.nome; seg.setAttribute("aria-label", "Ir para " + x.nome);
+    seg.appendChild(el("i"));
+    seg.onclick = () => x.node.scrollIntoView({ behavior: "smooth", block: "start" });
+    track.appendChild(seg);
+  });
+  const tick = el("div", "ghost-tick"); tick.id = "tick"; track.appendChild(tick);
+  window.addEventListener("scroll", aoRolar, { passive: true });
+  aoRolar();
+}
+
+let rafPend = false;
+function aoRolar() {
+  if (rafPend) return; rafPend = true;
+  requestAnimationFrame(() => { rafPend = false; pintaTempo(); });
+}
+function fracAtual() {
+  const art = $("#sermao"); if (!art || !S.alturaConteudo) return 0;
+  const y = window.scrollY + window.innerHeight * 0.34 - S.topoConteudo;
+  return Math.max(0, Math.min(1, y / S.alturaConteudo));
+}
+
+/* ========== cronômetro ========== */
+function decorrido() { return S.t.acum + (S.t.rodando ? Date.now() - S.t.t0 : 0); }
+function alternaTimer() {
+  if (S.t.rodando) { S.t.acum = decorrido(); S.t.rodando = false; pararTick(); $("#go").textContent = "▶"; }
+  else {
+    S.t.t0 = Date.now(); S.t.rodando = true; $("#go").textContent = "❚❚";
+    S.tick = setInterval(pintaTempo, 250);
+    pedirTelaAcesa();
+  }
+  pintaTempo();
+}
+function pararTick() { if (S.tick) { clearInterval(S.tick); S.tick = null; } }
+async function pedirTelaAcesa() { try { if (navigator.wakeLock && !S.wl) S.wl = await navigator.wakeLock.request("screen"); } catch (e) { } }
+function vibra(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { } }
+
+function pintaTempo() {
+  const s = S.atual; if (!s || S.view !== "pulpito") return;
+  const alvoMs = s.alvo * 60000, ms = decorrido(), restante = alvoMs - ms;
+  const clock = $("#clock"); if (!clock) return;
+  clock.textContent = mmss(ms);
+  clock.className = "clock" + (restante < 0 ? " over" : restante <= 5 * 60000 ? " warn" : "");
+  $("#remain").textContent = restante >= 0 ? "faltam " + mmss(restante) + " de " + s.alvo + " min" : "passou " + mmss(-restante);
+
+  // avisos
+  [[10, "d10"], [5, "d5"], [2, "d2"], [0, "d0"]].forEach(([min, chave]) => {
+    if (!S.t.alertas[chave] && S.t.rodando && restante <= min * 60000) {
+      S.t.alertas[chave] = true;
+      const tb = $("#topbar"); if (tb) { tb.classList.remove("flash"); void tb.offsetWidth; tb.classList.add("flash"); setTimeout(() => tb.classList.remove("flash"), 3400); }
+      vibra(min === 0 ? [180, 90, 180, 90, 180] : [140, 80, 140]);
+      toast(min === 0 ? "Tempo cheio." : "Faltam " + min + " minutos.");
+    }
+  });
+
+  // onde estou × onde deveria estar
+  const fa = fracAtual(), fe = Math.max(0, Math.min(1, ms / alvoMs));
+  const i = S.secs.length ? Math.max(0, S.secs.findIndex((x, k) => fa >= x.frac && fa < x.fim)) : -1;
+  const sec = S.secs[i === -1 ? S.secs.length - 1 : i];
+  if (sec) {
+    $("#onde").textContent = sec.nome;
+    const prevIni = sec.frac * s.alvo, prevFim = sec.fim * s.alvo;
+    $("#prev").textContent = "previsto " + Math.round(prevIni) + "–" + Math.round(prevFim) + " min";
+  }
+  const idx = i === -1 ? S.secs.length - 1 : i;
+  if (idx !== S.t.secAtual) {
+    if (S.t.rodando || S.t.acum) S.t.log.push({ i: idx, t: ms });
+    S.t.secAtual = idx;
+  }
+  const segs = document.querySelectorAll("#track .seg");
+  segs.forEach((seg, k) => {
+    const x = S.secs[k]; if (!x) return;
+    seg.classList.toggle("cur", k === idx);
+    const dentro = Math.max(0, Math.min(1, (fa - x.frac) / Math.max(0.0001, x.fim - x.frac)));
+    seg.firstChild.style.width = (dentro * 100) + "%";
+  });
+  const tick = $("#tick"); if (tick) { tick.style.left = (fe * 100) + "%"; tick.classList.toggle("late", fe > fa); }
+
+  const pace = $("#pace");
+  if (!S.t.rodando && !S.t.acum) { pace.textContent = "parado"; pace.className = "pace"; }
+  else {
+    const dMin = (fa - fe) * s.alvo;
+    const abs = Math.abs(dMin);
+    if (abs < 0.75) { pace.textContent = "no ritmo"; pace.className = "pace ahead"; }
+    else if (dMin > 0) { pace.textContent = "adiantado " + mmss(abs * 60000); pace.className = "pace ahead"; }
+    else { pace.textContent = "atrasado " + mmss(abs * 60000); pace.className = "pace " + (abs > 4 ? "late" : "behind"); }
+  }
+}
+
+function mudaFonte(d) {
+  S.ps = Math.max(15, Math.min(36, S.ps + d));
+  const art = $("#sermao"); if (art) art.style.setProperty("--ps", S.ps);
+  salvarLocal();
+  setTimeout(() => { if (S.secs.length) remedirSecoes(); }, 60);
+}
+function remedirSecoes() {
+  const art = $("#sermao"); if (!art) return;
+  const topo = art.offsetTop, altura = art.scrollHeight - art.querySelector(".endpad").offsetHeight;
+  S.topoConteudo = topo; S.alturaConteudo = altura;
+  S.secs.forEach(x => { x.frac = Math.max(0, Math.min(1, (x.node.offsetTop - topo) / Math.max(1, altura))); });
+  S.secs.forEach((x, i) => { x.fim = i + 1 < S.secs.length ? S.secs[i + 1].frac : 1; });
+  pintaTempo();
+}
+
+/* ========== resumo dos tempos ========== */
+function abreResumo() {
+  const s = S.atual, ms = decorrido();
+  const reais = new Array(S.secs.length).fill(0);
+  const log = S.t.log.slice();
+  if (log.length) {
+    for (let k = 0; k < log.length; k++) {
+      const fim = k + 1 < log.length ? log[k + 1].t : ms;
+      reais[log[k].i] += Math.max(0, fim - log[k].t);
+    }
+  }
+  const scrim = el("div", "scrim"); scrim.onclick = fecha;
+  const sh = el("div", "sheet");
+  sh.appendChild(el("h3", null, "Tempos por movimento"));
+  sh.appendChild(el("div", "eyebrow", mmss(ms) + " de " + s.alvo + " min previstos"));
+  const tb = el("table", "tbl");
+  tb.innerHTML = "<tr><th>Trecho</th><th>Previsto</th><th>Real</th><th style='text-align:right'>Dif.</th></tr>";
+  S.secs.forEach((x, i) => {
+    const prev = (x.fim - x.frac) * s.alvo * 60000, real = reais[i] || 0;
+    const tr = el("tr");
+    tr.appendChild(el("td", "nm", x.nome));
+    tr.appendChild(el("td", null, mmss(prev)));
+    tr.appendChild(el("td", null, real ? mmss(real) : "—"));
+    const d = el("td", "d " + (real && real <= prev ? "ahead" : real ? "behind" : ""), real ? (real <= prev ? "−" : "+") + mmss(Math.abs(real - prev)) : "—");
+    tr.appendChild(d);
+    tb.appendChild(tr);
+  });
+  sh.appendChild(tb);
+  const fecharBtn = el("button", "btn", "Fechar"); fecharBtn.style.marginTop = "14px"; fecharBtn.onclick = fecha;
+  sh.appendChild(fecharBtn);
+  document.body.appendChild(scrim); document.body.appendChild(sh);
+  function fecha() { scrim.remove(); sh.remove(); }
+}
+
+/* ========== tema e avisos ========== */
+function temaRotulo() { return S.tema === "dark" ? "Tema escuro" : S.tema === "light" ? "Tema claro" : "Tema do sistema"; }
+function trocaTema() {
+  S.tema = S.tema === null ? "dark" : S.tema === "dark" ? "light" : null;
+  if (S.tema) document.documentElement.setAttribute("data-theme", S.tema); else document.documentElement.removeAttribute("data-theme");
+  const o = lsGet(); o.tema = S.tema; lsSet(o);
+  render();
+}
+let toastT = null;
+function toast(msg) {
+  const old = $(".toast"); if (old) old.remove();
+  const t = el("div", "toast", msg); document.body.appendChild(t);
+  clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 2600);
+}
+
+/* ========== exemplo ========== */
+const EXEMPLO = `O REI QUE FECHA AS SAÍDAS — Mateus 5.27-32  |  Pr. Ronaldo Gadelha
+INTRODUÇÃO
+1. Todo mundo aqui já procurou uma saída.
+2. Na série passada vimos o Rei que abre a porta; hoje Ele fecha as saídas que nós mesmos cavamos.
+LER TEXTO: Mateus 5.27-32
+[BIG IDEIA]: O Rei não veio aparar o pecado pela borda; veio arrancá-lo pela raiz.
+Caminharemos em três movimentos. Veremos: I – O olhar que já é adultério (vv. 27-28) II – A mão que precisa ser decidida (vv. 29-30) III – A saída que o Rei fecha (vv. 31-32)
+I – O OLHAR QUE JÁ É ADULTÉRIO (vv. 27-28)
+27 Ouvistes que foi dito: Não adulterarás.
+1. O Rei não abranda a lei; Ele a leva até o coração.
+   a. A lei antiga media o ato; o Rei mede o desejo.
+(APLICAÇÃO) Você não adultera, mas guarda o olhar que ninguém vê.
+II – A MÃO QUE PRECISA SER DECIDIDA (vv. 29-30)
+29 Se o teu olho direito te faz tropeçar, arranca-o e lança-o de ti.
+1. A ordem não é mutilar o corpo, é cortar o acesso.
+(ILUSTRAÇÃO) Certa vez um irmão me disse, com o celular na mão: "pastor, eu só apago o aplicativo quando me dói".
+III – A SAÍDA QUE O REI FECHA (vv. 31-32)
+1. O divórcio fácil era a porta dos fundos da aliança.
+CONCLUSÃO
+1. Sabe quem teve uma convicção parecida? Pedro.
+2. O evangelho não é sobre regras; é, do início ao fim, sobre Jesus.`;
+
+/* ========== início ========== */
+(async function init() {
+  const local = lsGet();
+  if (local.tema) { S.tema = local.tema; document.documentElement.setAttribute("data-theme", local.tema); }
+  S.ps = local.ps || 21;
+  S.sermoes = local.sermoes || [];
+  render();
+  await carregar();
+  if (S.view === "lib") render();
+})();
+
+/* ========== funcionar sem internet ========== */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(() => {}); });
+}
+</script>
+</body>
+</html>

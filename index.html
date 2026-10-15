@@ -113,11 +113,15 @@ h1,h2,h3{text-wrap:balance; margin:0}
 .topbar.flash{animation:flash 1.6s ease-out 2}
 @keyframes flash{0%,100%{background:var(--surface)} 35%{background:var(--navy-soft)}}
 @media (prefers-reduced-motion: reduce){ .topbar.flash{animation:none; outline:2px solid var(--navy); outline-offset:-2px} }
-.clockrow{display:flex; align-items:baseline; gap:12px}
-.clock{font-family:var(--ui); font-weight:600; font-size:34px; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
-.clock.warn{color:var(--behind)} .clock.over{color:var(--over)}
-.remain{font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums}
-.pace{margin-left:auto; font-size:13px; font-weight:600; padding:5px 10px; border-radius:999px; background:var(--surface-2); font-variant-numeric:tabular-nums; white-space:nowrap}
+.clockrow{display:flex; align-items:flex-start; gap:8px}
+.col{flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:3px; align-items:flex-start}
+.col.c{align-items:center} .col.r{align-items:flex-end}
+.num{font-family:var(--ui); font-weight:600; font-size:34px; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-.02em; white-space:nowrap}
+.num.clock{font-size:43px; font-weight:700}
+.num.remain.warn{color:var(--behind)} .num.remain.over{color:var(--over)}
+.lbl{font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+@media (max-width:420px){ .num{font-size:28px} .num.clock{font-size:35px} .lbl{font-size:9.5px; letter-spacing:.05em} }
+.pace{font-size:15px; font-weight:600; padding:4px 11px; border-radius:999px; background:var(--surface-2); font-variant-numeric:tabular-nums; white-space:nowrap}
 .pace.ahead{color:var(--ahead)} .pace.behind{color:var(--behind)} .pace.late{color:var(--over)}
 .track{position:relative; height:9px; margin:9px 0 6px; display:flex; gap:2px}
 .seg{flex:1 1 auto; background:var(--surface-2); border-radius:3px; position:relative; overflow:hidden; min-width:3px; padding:0; border:none}
@@ -657,17 +661,29 @@ function telaPulpito() {
 
   const top = el("div", "topbar"); top.id = "topbar";
   const cr = el("div", "clockrow");
-  const clock = el("div", "clock"); clock.id = "clock"; clock.textContent = "0:00";
-  const rem = el("div", "remain"); rem.id = "remain";
+
+  const colE = el("div", "col");
+  const rem = el("div", "num remain"); rem.id = "remain"; rem.textContent = mmss(s.alvo * 60000);
+  const remLbl = el("div", "lbl"); remLbl.id = "remain-lbl"; remLbl.textContent = "faltam de " + s.alvo + " min";
+  colE.appendChild(rem); colE.appendChild(remLbl);
+
+  const colC = el("div", "col c");
+  const clock = el("div", "num clock"); clock.id = "clock"; clock.textContent = "0:00";
   const pace = el("div", "pace"); pace.id = "pace"; pace.textContent = "parado";
-  cr.appendChild(clock); cr.appendChild(rem); cr.appendChild(pace);
+  colC.appendChild(clock); colC.appendChild(pace);
+
+  const colD = el("div", "col r");
+  const hora = el("div", "num hora"); hora.id = "hora"; hora.title = "Hora agora";
+  const horaLbl = el("div", "lbl", "hora");
+  colD.appendChild(hora); colD.appendChild(horaLbl);
+
+  cr.appendChild(colE); cr.appendChild(colC); cr.appendChild(colD);
   top.appendChild(cr);
   const track = el("div", "track"); track.id = "track"; top.appendChild(track);
   const wb = el("div", "wherebar");
   const onde = el("b"); onde.id = "onde"; onde.textContent = "—";
   const prev = el("span"); prev.id = "prev";
-  const hora = el("span", "hora"); hora.id = "hora"; hora.title = "Hora agora";
-  wb.appendChild(onde); wb.appendChild(prev); wb.appendChild(hora);
+  wb.appendChild(onde); wb.appendChild(prev);
   top.appendChild(wb);
   root.appendChild(top);
 
@@ -766,8 +782,10 @@ function pintaTempo() {
   const alvoMs = s.alvo * 60000, ms = decorrido(), restante = alvoMs - ms;
   const clock = $("#clock"); if (!clock) return;
   clock.textContent = mmss(ms);
-  clock.className = "clock" + (restante < 0 ? " over" : restante <= 5 * 60000 ? " warn" : "");
-  $("#remain").textContent = restante >= 0 ? "faltam " + mmss(restante) + " de " + s.alvo + " min" : "passou " + mmss(-restante);
+  const rem = $("#remain");
+  rem.textContent = restante >= 0 ? mmss(restante) : "+" + mmss(-restante);
+  rem.className = "num remain" + (restante < 0 ? " over" : restante <= 5 * 60000 ? " warn" : "");
+  $("#remain-lbl").textContent = restante >= 0 ? "faltam de " + s.alvo + " min" : "passou do tempo";
 
   // avisos
   [[10, "d10"], [5, "d5"], [2, "d2"], [0, "d0"]].forEach(([min, chave]) => {

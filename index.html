@@ -169,6 +169,8 @@ h1,h2,h3{text-wrap:balance; margin:0}
 .it.mark.l1{padding-left:.85em; margin-left:1.4em}
 .it.mark.l2{padding-left:.85em; margin-left:2.8em}
 .it.mark .tx{display:block}
+.it.m-pr{border-color:var(--navy); background:var(--navy-soft)}
+.it.m-pr .mk{color:var(--navy)}
 .it.m-ap{border-color:var(--verde); background:var(--verde-soft)}
 .it.m-il{border-color:var(--ochre); background:var(--ochre-soft)}
 .it.m-sl{border-color:var(--roxo); background:var(--roxo-soft)}
@@ -352,7 +354,20 @@ function parse(bruto) {
     // parágrafo solto
     blocos.push({ k: "it", n: 0, mk: "", t, tags });
   }
-  return { titulo: titulo || "", ref: ref || "", blocos };
+  return { titulo: titulo || "", ref: ref || "", blocos: renumera(blocos) };
+}
+
+/* Renumera os itens: a cada frase principal (número), as letras recomeçam em "a". */
+function renumera(blocos) {
+  let c0 = 0, c1 = 0, c2 = 0;
+  for (const b of blocos) {
+    if (b.k !== "it") { if (b.k === "head" || b.k === "mov" || b.k === "big" || b.k === "map") { c0 = 0; c1 = 0; c2 = 0; } continue; }
+    if (!b.mk) continue;
+    if (b.n === 0) { c0++; c1 = 0; c2 = 0; b.mk = c0 + "."; }
+    else if (b.n === 1) { c1++; c2 = 0; b.mk = marcador(1, c1); }
+    else { c2++; b.mk = marcador(2, c2); }
+  }
+  return blocos;
 }
 
 function metricas(blocos) {
@@ -475,8 +490,8 @@ function corpoHTML(doc) {
     }
     else if (b.k === "bloco") { n = el("div", "bloco", b.t); }
     else {
-      const principal = corDoBloco(b.tags);
-      n = el("div", "it l" + b.n + (principal ? " mark m-" + principal : ""));
+      const cor = corDoBloco(b.tags) || (b.n === 0 && b.mk ? "pr" : "");
+      n = el("div", "it l" + b.n + (cor ? " mark m-" + cor : ""));
       n.appendChild(el("span", "mk", b.mk || ""));
       const tx = el("span", "tx");
       const lb = etiquetas(b.tags); if (lb) tx.appendChild(lb);

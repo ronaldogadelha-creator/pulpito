@@ -1,6 +1,6 @@
 /* Púlpito — funciona sem internet.
    Troque a versão abaixo sempre que publicar uma mudança. */
-const VERSAO = "pulpito-v10";
+const VERSAO = "pulpito-v11";
 const ARQUIVOS = [
   "./", "./index.html", "./jszip.min.js", "./manifest.webmanifest",
   "./icon-180.png", "./icon-192.png", "./icon-512.png", "./icon-512-maskable.png"
@@ -21,6 +21,19 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
+
+  // a página em si: tenta a internet primeiro, para a versão nova chegar sempre
+  const ehPagina = req.mode === "navigate" || /\/(index\.html)?$/.test(new URL(req.url).pathname);
+  if (ehPagina) {
+    e.respondWith(
+      fetch(req).then(resp => {
+        if (resp && resp.ok) { const c = resp.clone(); caches.open(VERSAO).then(k => k.put("./index.html", c)); }
+        return resp;
+      }).catch(() => caches.match("./index.html").then(r => r || caches.match(req)))
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(req).then(achado => {
       if (achado) return achado;

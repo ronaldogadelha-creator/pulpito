@@ -223,6 +223,7 @@ const esc = s => String(s).replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;",
 const mmss = ms => { const neg = ms < 0; ms = Math.abs(ms); const t = Math.floor(ms / 1000); const m = Math.floor(t / 60), s = t % 60; return (neg ? "-" : "") + m + ":" + String(s).padStart(2, "0"); };
 const uid = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const LS = "pulpito.v2";
+const APP_VER = "10";
 
 function lsGet() { try { return JSON.parse(localStorage.getItem(LS) || "{}"); } catch (e) { return {}; } }
 function lsSet(o) { try { localStorage.setItem(LS, JSON.stringify(o)); } catch (e) { } }
@@ -668,7 +669,7 @@ function telaBiblioteca() {
   const t = el("div");
   const b = el("div", "brand"); b.innerHTML = "P\u00falpito<span>.</span>";
   t.appendChild(b);
-  t.appendChild(el("div", "eyebrow", S.podeNuvem ? "esbo\u00e7os sincronizados" : "esbo\u00e7os neste aparelho"));
+  t.appendChild(el("div", "eyebrow", (S.podeNuvem ? "esbo\u00e7os sincronizados" : "esbo\u00e7os neste aparelho") + "  \u00b7  vers\u00e3o " + APP_VER));
   head.appendChild(t); head.appendChild(el("div", "spacer"));
   const temas = el("button", "btn ghost", temaRotulo()); temas.onclick = trocaTema; head.appendChild(temas);
   const exp = el("button", "btn ghost", "Exportar"); exp.onclick = exportar; head.appendChild(exp);
@@ -1138,7 +1139,21 @@ CONCLUSÃO
 
 /* ========== funcionar sem internet ========== */
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(() => {}); });
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" })
+      .then(reg => {
+        reg.update();
+        setInterval(() => reg.update(), 60 * 60 * 1000);
+        reg.addEventListener("updatefound", () => {
+          const novo = reg.installing;
+          if (!novo) return;
+          novo.addEventListener("statechange", () => {
+            if (novo.state === "installed" && navigator.serviceWorker.controller) location.reload();
+          });
+        });
+      })
+      .catch(() => {});
+  });
 }
 </script>
 </body>

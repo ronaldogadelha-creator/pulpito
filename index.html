@@ -27,6 +27,7 @@ img{max-width:100%}
   --ochre:#8A5A0B; --ochre-soft:#F7EEDC;
   --verde:#1A6049; --verde-soft:#E2F0E9;
   --roxo:#5B3A96; --roxo-soft:#EDE8F8;
+  --verm:#C21F1F; --verm-soft:#FBE6E4;
   --ahead:#1C6B4C; --behind:#A8641B; --over:#B0241C;
   --shadow:0 1px 2px rgba(20,25,33,.06), 0 6px 20px rgba(20,25,33,.07);
   --display: Georgia, "Iowan Old Style", "Times New Roman", serif;
@@ -41,6 +42,7 @@ img{max-width:100%}
   --ochre:#DFB25C; --ochre-soft:#2C2416;
   --verde:#6FD1AB; --verde-soft:#14281F;
   --roxo:#B49BEE; --roxo-soft:#211B33;
+  --verm:#FF8A7A; --verm-soft:#331815;
   --ahead:#64D3A6; --behind:#E0A95C; --over:#FF7A6B;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   color-scheme:dark;
@@ -53,6 +55,7 @@ img{max-width:100%}
   --ochre:#DFB25C; --ochre-soft:#2C2416;
   --verde:#6FD1AB; --verde-soft:#14281F;
   --roxo:#B49BEE; --roxo-soft:#211B33;
+  --verm:#FF8A7A; --verm-soft:#331815;
   --ahead:#64D3A6; --behind:#E0A95C; --over:#FF7A6B;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   color-scheme:dark;
@@ -174,7 +177,9 @@ h1,h2,h3{text-wrap:balance; margin:0}
 .it.m-pr .mk{color:var(--navy)}
 .it.m-ap{border-color:var(--verde); background:var(--verde-soft)}
 .it.m-il{border-color:var(--ochre); background:var(--ochre-soft)}
-.it.m-sl{border-color:var(--roxo); background:var(--roxo-soft)}
+.it.m-sl{border-color:var(--verm); background:var(--verm-soft)}
+.it.m-sl .tx{color:var(--verm); font-weight:700}
+.it.m-sl .mk{color:var(--verm)}
 .labels{display:flex; flex-wrap:wrap; gap:.35em; margin-bottom:.3em}
 .labels.cent{justify-content:center}
 .head .labels{margin-bottom:.35em}
@@ -182,7 +187,7 @@ h1,h2,h3{text-wrap:balance; margin:0}
 .tag{font-family:var(--ui); font-size:.56em; font-weight:600; letter-spacing:.1em; padding:.22em .6em; border-radius:999px; white-space:nowrap; align-self:flex-start}
 .tag.ap{background:var(--verde); color:var(--verde-soft)}
 .tag.il{background:var(--ochre); color:var(--ochre-soft)}
-.tag.sl{background:var(--roxo); color:var(--roxo-soft)}
+.tag.sl{background:var(--verm); color:var(--verm-soft)}
 .endpad{height:46vh}
 
 .bottombar{position:fixed; left:0; right:0; bottom:0; z-index:30; background:var(--surface); border-top:1px solid var(--line);
@@ -488,7 +493,7 @@ function corpoHTML(doc) {
   };
   const corDoBloco = tags => {
     const c = (tags || []).map(x => x[0]);
-    return c.includes("ap") ? "ap" : c.includes("il") ? "il" : c.includes("sl") ? "sl" : "";
+    return c.includes("sl") ? "sl" : c.includes("ap") ? "ap" : c.includes("il") ? "il" : "";
   };
 
   for (const b of doc.blocos) {

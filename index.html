@@ -411,6 +411,31 @@ async function lerArquivo(file) {
   const entrada = zip.file("word/document.xml");
   if (!entrada) throw new Error("Esse .docx não tem o conteúdo esperado do Word.");
   const xml = await entrada.async("string");
+
+  // numeração que vem do estilo do parágrafo, não do parágrafo em si
+  const porEstilo = {};
+  try {
+    const se = zip.file("word/styles.xml");
+    if (se) {
+      const sx = new DOMParser().parseFromString(await se.async("string"), "application/xml");
+      const baseDe = {};
+      for (const st of Array.from(sx.getElementsByTagName("w:style"))) {
+        const id = st.getAttribute("w:styleId"); if (!id) continue;
+        const bo = st.getElementsByTagName("w:basedOn")[0];
+        if (bo) baseDe[id] = bo.getAttribute("w:val");
+        const np = st.getElementsByTagName("w:numPr")[0];
+        if (np) {
+          const li = np.getElementsByTagName("w:ilvl")[0], ni = np.getElementsByTagName("w:numId")[0];
+          if (ni) porEstilo[id] = { nivel: li ? (parseInt(li.getAttribute("w:val"), 10) || 0) : 0, numId: ni.getAttribute("w:val") };
+        }
+      }
+      for (const id of Object.keys(baseDe)) {
+        let a = id, n = 0;
+        while (!porEstilo[a] && baseDe[a] && n++ < 6) a = baseDe[a];
+        if (porEstilo[a] && !porEstilo[id]) porEstilo[id] = porEstilo[a];
+      }
+    }
+  } catch (e) { }
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   if (doc.getElementsByTagName("parsererror").length) throw new Error("Não consegui ler o conteúdo do arquivo.");
 
@@ -423,15 +448,19 @@ async function lerArquivo(file) {
     let marca = "", italico = false;
     if (pPr) {
       const numPr = pPr.getElementsByTagName("w:numPr")[0];
-      if (numPr) {
-        const li = numPr.getElementsByTagName("w:ilvl")[0];
-        const ni = numPr.getElementsByTagName("w:numId")[0];
-        const nivel = li ? (parseInt(li.getAttribute("w:val"), 10) || 0) : 0;
-        const numId = ni ? ni.getAttribute("w:val") : "x";
-        if (numId !== numAnt) { cont = cont.map(() => 0); numAnt = numId; }
-        cont[nivel] = (cont[nivel] || 0) + 1;
-        for (let k = nivel + 1; k < cont.length; k++) cont[k] = 0;
-        marca = marcador(nivel, cont[nivel]) + " ";
+      const est = pPr.getElementsByTagName("w:pStyle")[0];
+      const doEstilo = est ? porEstilo[est.getAttribute("w:val")] : null;
+      if (numPr || doEstilo) {
+        const li = numPr ? numPr.getElementsByTagName("w:ilvl")[0] : null;
+        const ni = numPr ? numPr.getElementsByTagName("w:numId")[0] : null;
+        const nivel = li ? (parseInt(li.getAttribute("w:val"), 10) || 0) : (doEstilo ? doEstilo.nivel : 0);
+        const numId = ni ? ni.getAttribute("w:val") : (doEstilo ? doEstilo.numId : "x");
+        if (numId !== "0") {
+          if (numId !== numAnt) { cont = cont.map(() => 0); numAnt = numId; }
+          cont[nivel] = (cont[nivel] || 0) + 1;
+          for (let k = nivel + 1; k < cont.length; k++) cont[k] = 0;
+          marca = marcador(nivel, cont[nivel]) + " ";
+        }
       }
     }
     if (!marca) {
